@@ -1,0 +1,1201 @@
+---
+title: "Biogas Data Logger Documentation"
+subtitle: "How to use and improve the biogas data logger developed as part of 2024-msc-sem-proj-thaeussner"
+date: 2024-06-20
+author:
+  - name: Till Häussner
+    orcid: 0009-0005-7617-9312
+    email: thaeussner@student.ethz.ch
+    affiliation: 
+      - name: Global Health Engineering at ETH Zürich
+        url: https://ghe.ethz.ch/
+abstract: ""
+
+number-sections: true
+  
+keywords: ""
+  
+format:
+  html:
+    code-fold: true
+    toc: true
+    toc-depth: 6
+    html-math-method: katex
+    css: styles.css
+    
+execute:
+  warning: false
+  message: false
+
+license: "CC BY"
+funding: "The author received no specific funding for this work."
+---
+
+# Introduction {#sec-introduction}
+
+The overarching idea is to monitor improved cookstove and biogas digester usage in Malawi.
+
+The goal was to create a device capable of logging data from several sensors reliably and cheaply, and transmitting this data to the cloud. Inspiration for this was the [Smart Biogas data logger by Inclusive Energy](https://inclusive.energy/smart-biogas).
+
+## Constraints {#sec-constraints}
+
+-   **Use Case:** The device was initially meant able to work in two different scenarios with different sensors: 
+
+    -   1: Two sensors for biogas digesters: a flow sensor and a composition sensor
+
+    -   2: Two sensors for improved cookstoves: a weight scale and a temperature sensor
+
+        Later development focused solely on the first scenario, with only the two biogas sensors connected.
+
+-   **Power:** As these sensors are likely located in rural or semi-rural areas, access to electricity can’t be guaranteed. Therefore, the device needs to be powered by solar panels ideally and surely be connected to a battery, while not drawing too much power.
+
+-   **Internet Access:** Furthermore, internet access needs to be via cellular using a SIM card, with LTE and/or 4G preferably. As this connection could be volatile, data needs to be backed up locally as well.
+
+-   **Data Redundancy:** As even cellular internet connections can have weak or no signal, for reliability and redundancy, data needs to be backed up locally to storage.
+
+-   **Cost:** The device should be relatively cheap to produce and maintain.
+
+-   **Quantity:** About 200 devices are meant to be deployed, and therefore the solution needs to be easily scalable.
+
+# Testing & Prototyping {#sec-testing--prototyping}
+
+The initial ideas were heavily influenced by Valentin Hirsch’s Bachelor thesis Microcontroller Based Particulate Matter Monitors Utilising the Alphasense OPC-N3, a pdf of which can be found in /docs. Also, the construction and parts of the [Smart Biogas device](https://inclusive.energy/smart-biogas) were studied.
+
+## Components {#sec-components}
+
+For our device, the needed components were identified as follows:
+
+-   **A microcontroller**: the [ESP32](https://www.espressif.com/en/products/socs/esp32) was chosen over an [Arduino](https://www.arduino.cc/en/hardware) for the cheaper price, better performance and reliability, Bluetooth and wifi connectivity, and smaller footprint. Here, the [ESP32-DevKitC-V4 development board](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/esp32/get-started-devkitc.html) was the best choice.
+
+-   **A Micro SD card with connector:** a regular Micro SD card was chosen with a breakout board, with the [Adafruit MicroSD card breakout board+](https://www.adafruit.com/product/254) being the simplest and most straight-forward solution.
+
+-   **A Real-Time Clock (RTC):** for precise time-keeping without constant internet connection, an RTC is needed. With a separate battery, this keeps running even if the microcontroller is powered off. Here, the [Adafruit DS1307 RTC Breakout](https://www.adafruit.com/product/3296) is a good start. However, as the DS1307 is quite cheap, it may lose or gain up to 2 seconds per day. Therefore, the [Adafruit DS3231 Precision RTC Board](https://www.adafruit.com/product/3013), although a little more expensive, is used in the PCB designs (see Chapter 3).
+
+-   **A SIMCOM module:** while the ESP32 has built-in wifi and bluetooth capabilities (which is super useful for testing), we still need cellular internet connectivity. Finding a good module for this turned out to be quite tricky, as most data logging applications work over wifi only. The leading manufacturer of cellular wireless modules seems to be [SIMCom](https://en.simcom.com/), whose product is also used by Smart Biogas. As SIMCom doesn’t manufacture ready-to-use breakout boards for their chip, the [BK-A7670E board by AND Technologies](https://de.aliexpress.com/item/1005004176439432.html?spm=a2g0o.detail.pcDetailTopMoreOtherSeller.3.6285NVMdNVMdVY&gps-id=pcDetailTopMoreOtherSeller&scm=1007.40050.354490.0&scm_id=1007.40050.354490.0&scm-url=1007.40050.354490.0&pvid=d7865d29-dfaa-4ea5-84e7-75839fcac57a&_t=gps-id:pcDetailTopMoreOtherSeller,scm-url:1007.40050.354490.0,pvid:d7865d29-dfaa-4ea5-84e7-75839fcac57a,tpp_buckets:668%232846%238115%232000&utparam-url=scene%3ApcDetailTopMoreOtherSeller%7Cquery_from%3A) was chosen for the support of GSM/GPRS, LTE and 4G, the cheap price tag of about 15 Fr. and the good reviews by buyers.
+
+-   **A Power Bank:** Wherever power may come from, it could not be reliant and therefore we need some sort of battery. The [Varta Power Bank Energy 20000](https://www.varta-ag.com/en/consumer/product-categories/portable-power/power-bank-energy-20000) was chosen for reliability, price tag and capacity (20’000mAh should be plenty for a simple circuit). It can easily power circuits via the USB connector on the ESP32 dev board or an adapted USB cable with pin ends.
+
+## ESP32-DevKitC-V4 {#sec-esp32-devkitc-v4}
+
+As mentioned, the ESP32-DevKitC-V4 development board is used for this project. A full documentation for this microcontroller board can be found here: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/esp32/get-started-devkitc.html>.
+
+The layout of this board is shown in @fig-esp32-devkitc-v4-overview. The EN button is really useful to reset the board when it's not working as it should. The GPIO numbers and power pins are printed on the board and correspond the pin numbers used in this documentation.
+
+![The functional overview of the ESP32-DevKitC-V4 Development Board. Source: [Espressif ESP32-DevKitC Documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/esp32/get-started-devkitc.html#functional-description)](images/esp32-devkitc-functional-overview.jpg){#fig-esp32-devkitc-v4-overview}
+
+The pin layout of this board is shown in more detail in @fig-esp32-pins. Important for this project:
+
+-   **Power & Ground:** The board can be powered via (1) the Micro USB port from a laptop or powerbank, (2) the 5V pin with 5V or (3) the 3V3 power pins with 3.3V. It needs to be grounded via either (1) the USB port or (2) on of the three GND pins. All of these pins can also be used to power components (done in this project).
+
+    IMPORTANT: only power the board via one and only one of the options above, [otherwise it can be damaged](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/esp32/get-started-devkitc.html#power-supply-options).
+
+-   **Analog Pins:** GPIOs 36, 39, 34, 35, 32, 33, 25, 26, 27, 14, 12, 13, 4, 0, 2, and 15 (labeled with *ADCX_X*) are connected to an onboard ADC and can take analog voltage inputs from 0V to 3.3V, [but can only distinguish between values from about 0.15V - 3.1V](https://randomnerdtutorials.com/esp32-adc-analog-read-arduino-ide/). For the flow meter attachment to the data logger, ADC pin GPIO 2 was chosen. For more info on ESP32 analog inputs, [this tutorial is very helpful](https://randomnerdtutorials.com/esp32-adc-analog-read-arduino-ide/).
+
+-   **I2C pins:** GPIOs 21 (WIRE_SDA) and 22 (WIRE_SCL) are the default pins for [I2C communication](https://en.wikipedia.org/wiki/I%C2%B2C). Any other pins can be assigned I2C, which has to be done manually in the code, as shown in @sec-code-for-adafruit-9dof-pitch-roll-and-heading. For more info on ESP32 I2C communication, [see here](https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/).
+
+-   **SPI pins:** The ESP has two default [SPI](https://en.wikipedia.org/wiki/Serial_Peripheral_Interface) interfaces: VSPI and HSPI. For this project, VSPI (GPIOs 23, 19, 18, and 5) is used for the MicroSD card. For more info on ESP32 SPI communication, [see here](https://randomnerdtutorials.com/esp32-spi-communication-arduino/).
+
+-   **UART pins:** [UART (Serial) communication](https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter) is needed for the cellular module (BK-A7670E). The ESP has two designated serial pins with GPIO 1 and 3, which are conveniently labeled TX (transmit) and RX (receive) respectively. [This is a nice tutorial on ESP32 UART communication](https://controllerstech.com/how-to-use-uart-in-esp32-esp-idf/).
+
+![The pin layout of the ESP32-DevKitC-V4. Source: [Espressif ESP32-DevKitC Documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/esp32/get-started-devkitc.html#pin-layout)](images/esp32-devkitC-v4-pinout.png){#fig-esp32-pins}
+
+## Data Logger Breadboard {#sec-data-logger-breadboard}
+
+The components mentioned above were connected on a breadboard as shown in @fig-breadboard, together with the [Adafruit 9DOF](https://learn.adafruit.com/adafruit-9-dof-imu-breakout/introduction) which provided gyroscope data (*pitch*, *roll* and *heading*) for easy testing. The flow- or composition sensors, which were developed simultaneously to this project, both give analog output signals which can be connected to any ADC pin on the ESP32 Board ([see the Espressif Documentation for pin layout](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/esp32/get-started-devkitc.html#pin-layout)). For the flow meter, GPIO 2 was chosen, but this can easy be changed. The individual connections for the signals are listed in @tbl-breadboard and also shown schematically in @fig-breadboard-circuit. To learn more about the different signal types the boards are using, click on the links in the table. Note that the power connections (5V and GND as all components can work on 5V) are not listed in @tbl-breadboard or @fig-breadboard-circuit, but shown in @fig-breadboard-circuit-power. To power the entire circuit, the ESP32 was simply connected via the Micro USB to either a laptop (also for code upload and data printout) or the VARTA powerbank. Alternatively, using the white USB cable with power pin ends, the circuit (including the ESP32) can be powered by supplying 5V and GND to any of the respective rails. IMPORTANT: Do not power the circuit with USB and external power simultaneously, [as this will probably damage the microcontroller](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/hw-reference/esp32/get-started-devkitc.html#power-supply-options).
+
+![The breadboard data logger prototype](images/breadboard_datalogger_closeup.jpg){#fig-breadboard}
+
+![The circuit of the data logger prototype breadboard, made with [Cirkit Designer](https://www.cirkitdesigner.com/)](images/breadboard_datalogger_circuit_signals_only.png){#fig-breadboard-circuit}
+
+| Component               | Pin           | ESP32 GPIO | Signal Type                                                                  |
+|------------|------------|------------|------------------------------------|
+| Flow Sensor (not shown) | Analog Output | 2          | [Analog](https://randomnerdtutorials.com/esp32-adc-analog-read-arduino-ide/) |
+| Adafruit 9DOF Sensor    | SDA           | 21         | [I2C](https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/)  |
+| Adafruit 9DOF Sensor    | SCL           | 22         | [I2C](https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/)  |
+| Adafruit RTC DS1307     | SDA           | 33         | [I2C](https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/)  |
+| Adafruit RTC DS1307     | SCL           | 32         | [I2C](https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/)  |
+| Adafruit MicroSD        | CS            | 5          | [SPI](https://randomnerdtutorials.com/esp32-spi-communication-arduino/)      |
+| Adafruit MicroSD        | DI            | 23         | [SPI](https://randomnerdtutorials.com/esp32-spi-communication-arduino/)      |
+| Adafruit MicroSD        | DO            | 19         | [SPI](https://randomnerdtutorials.com/esp32-spi-communication-arduino/)      |
+| Adafruit MicroSD        | CLK           | 18         | [SPI](https://randomnerdtutorials.com/esp32-spi-communication-arduino/)      |
+| BK-A7670E               | T             | RXD        | [UART](https://controllerstech.com/how-to-use-uart-in-esp32-esp-idf/)        |
+| BK-A7670E               | R             | TXD        | [UART](https://controllerstech.com/how-to-use-uart-in-esp32-esp-idf/)        |
+
+: The individual connections for the breadboard prototype {#tbl-breadboard}
+
+![The circuit of the data logger prototype breadboard with all power connections, made with [Cirkit Designer](https://www.cirkitdesigner.com/)](images/breadboard_datalogger_circuit.png){#fig-breadboard-circuit-power}
+
+### Breadboard for the flow meter {#sec-breadboard-for-the-flow-meter}
+
+To attach the flow meter to the data logger breadboard and remove the Adafruit 9DOF sensor, the following steps are done:
+
+-   The Adafruit 9DOF is removed from the circuit with all connections
+
+-   The RTC is moved to the default I2C pins 21 and 22, as they are no longer occupied by the 9DOF.
+
+-   The flow meter is connected to 5V and GND and then to pin 2
+
+The readout of the values is then done with the code datalogger_flowmeter.ino described in @sec-datalogger_flowmeter.ino.
+
+This circuit is shown below in @fig-breadboard-flowmeter, with all needes power and ground connections
+
+![The circuit for the flowmeter data logger, made with [Cirkit Designer](https://www.cirkitdesigner.com/)](images/breadboard_flowmeter.png){#fig-breadboard-flowmeter}
+
+## Code and Software {#sec-code-and-software}
+
+All code was written and edited in Arduino IDE 2.3.2, which can be downloaded here: <https://www.arduino.cc/en/software>.
+
+The quick start to use the breadboard data logger is described next in @sec-quick-start; go to @sec-microcontroller-code for the details on the code.
+
+### Breadboard Quick Start {#sec-quick-start}
+
+Make sure to be on ETH premises for the ETH IoT Wifi to work
+
+1.  Go to google.com and log into this account:
+
+    -   Email: *See datalogger_credentials.pdf Item 3*
+    -   PW: *See datalogger_credentials.pdf Item 4*
+
+2.  Logged into the above Google account, [go to this spreadsheet](https://docs.google.com/spreadsheets/d/1Dp0jl5t3F-D2OPdoOo2naJbEfygzyLq-sfOtOqr3_y4/edit?gid=0#gid=0)
+
+3.  Open /src/datalogger_9DOF/datalogger_9DOF.ino in Arduino IDE
+
+4.  Make sure the libraries and boards mentioned in the code are installed in Arduino IDE
+
+5.  Connect the breadboard to the computer via the microUSB on the ESP32
+
+6.  Make sure the board and port are recognized in Arduino IDE
+
+7.  Make sure all cables on the breadboard are properly connected.
+
+8.  Upload the sketch to the board
+
+The data should then automatically be uploaded to Google Sheets every 2 seconds. You can tilt the breadboard around a bit to see how the pitch, roll, and heading values change.
+
+### Google Sheets Connection {#sec-google-sheets-connection}
+
+Data is being logged to Google Sheets using a Google Service Account and the Google Sheets API. Mainly done using [this tutorial by Sara Santos](https://randomnerdtutorials.com/esp32-datalogging-google-sheets/).
+
+#### Google Account {#sec-google-account}
+
+For the Google Sheets connection, a Google account is needed. I created a business account for this project:
+
+-   Name: *See datalogger_credentials.pdf Item 1*
+
+-   Birthday: *See datalogger_credentials.pdf Item 2*
+
+-   Email: *See datalogger_credentials.pdf Item 3*
+
+-   PW: *See datalogger_credentials.pdf Item 4*
+
+-   Recovery Email: *See datalogger_credentials.pdf Item 5*
+
+#### Google Cloud {#sec-google-cloud}
+
+The connection is based on Google Cloud: <https://console.cloud.google.com/welcome>
+
+##### Google Cloud Project
+
+First, a project was created in Google Cloud. When logged into Google Cloud with the GHE Datalogging account, make sure the project **esp32-datalogger-tests** is selected in the top left as shown in @fig-google-cloud-project :
+
+![The selected projct "esp32-datalogger-tests" in Google Cloud](images/google_cloud_project-01.png){#fig-google-cloud-project}
+
+##### Google Service Account for the project
+
+For the project, a Google Service Account was created here: <https://console.cloud.google.com/iam-admin/serviceaccounts?authuser=7&orgonly=true&project=esp32-datalogger-tests&supportedpurview=project,organizationId,folder>
+
+-   Name: *See datalogger_credentials.pdf Item 6*
+
+-   Description: *See datalogger_credentials.pdf Item 7*
+
+-   Email: *See datalogger_credentials.pdf Item 8*
+
+-   Unique ID: *See datalogger_credentials.pdf Item 9*
+
+##### Google Service Account Key
+
+Furthermore, a key was created for the Service Account at <https://console.cloud.google.com/iam-admin/serviceaccounts/details/103211502601500271707/keys?authuser=7&orgonly=true&project=esp32-datalogger-tests&supportedpurview=project,organizationId,folder> and is shown below.
+
+You can find the full key in the Google Drive at /src/esp32-datalogger-tests-53555427019f.json or in datalogger_credentials.pdf Item 10.
+
+``` json
+For key, see datalogger_credentials.pdf Item 10
+```
+
+##### APIs
+
+For the connection to work, two APIs were enabled in Google Cloud Project:
+
+-   Google Drive API: <https://console.cloud.google.com/apis/library/drive.googleapis.com>
+
+-   Google Sheets API: <https://console.cloud.google.com/apis/library/sheets.googleapis.com>
+
+#### Google Sheets {#sec-google-sheets}
+
+Finally, a Google Spreadsheet was created in the regular Google Drive of the GHE Datalogging account (see @sec-google-account ):
+
+For the spreadsheet link, *See datalogger_credentials.pdf Item 12*
+
+This was then shared with the Google Service Account using the client_email from the key (/src/esp32-datalogger-tests-53555427019f.json)
+
+-   client_email: *See datalogger_credentials.pdf Item 8*
+
+-   Speadsheet ID: *See datalogger_credentials.pdf Item 11*
+
+### Microcontroller Code {#sec-microcontroller-code}
+
+In /src, the following Arduino Code folders - each with their respective .ino file - can be found:
+
+-   **datalogger_9DOF** (code described in @sec-code-for-adafruit-9dof-pitch-roll-and-heading) To use the breadboard with the Adafruit 9DOF sensor as described in @sec-data-logger-breadboard.
+
+-   **datalogger_flowmeter** (code described in @sec-datalogger_flowmeter.ino) To use the breadboard (and the PCBs) with the flow meter on pin 2
+
+-   **analog_readout_simple** (code described in @sec-analog_readout_simple.ino) To simply read out the flow meter values to the Arduino IDE serial Monitor
+
+#### datalogger_9DOF.ino {#sec-code-for-adafruit-9dof-pitch-roll-and-heading}
+
+The main code for the breadboard data logger - to read the 9DOF values, attach the RTC time stamp, save them to the MicroSD card and send them to Google Sheets - is located in *datalogger_9DOF.ino .*
+
+See @sec-quick-start for the quick start with the breadboard.
+
+After uploading the code, you can disconnect the board from the computer and power it with the power bank or any other 5V source. If no new measurements are appearing in Google Sheets, briefly click the EN button on the ESP32 board and wait for it to reset.
+
+Common issues and stuff to check:
+
+-   Check that the ESP32 has stable connection to the ETH IoT network or any other wifi source that you specified in the code
+
+-   Check that all cables on the breadboard are properly connected
+
+-   Check that Google Sheets is actually refreshing
+
+-   Check that the board has enough power
+
+The code is basically a fusion of different snippets of the libraries and sources mentioned at the start of the code. It is explained line by line in the following:
+
+**Lines 1 - 35: Info and Sources**
+
+``` c++
+/*
+  ESP32 Data Logger with Adafruit 9DOF sensor, by Till Häussner
+
+  SOURCES for the code parts:
+  - Google Sheets Client: Rui Santos, https://RandomNerdTutorials.com/esp32-datalogging-google-sheets/
+                  Adapted from the examples of the Library Google Sheet Client Library for Arduino devices: https://github.com/mobizt/ESP-Google-Sheet-Client
+  - Adafruit 9DOF Sensor Library: https://github.com/adafruit/Adafruit_9DOF
+                  Specifically the code example pitchrollheading.ino
+  - I2C Scanning and Debugging: Rui Santos, https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/
+  - Adafruit RTC DS1307 Library: https://github.com/adafruit/RTClib
+  - microSD integration: Rui Santos, https://randomnerdtutorials.com/esp32-microsd-card-arduino/
+
+  REQUIRED LIBRARIES (install by searching for name in Arduino IDE -> Library Manager):
+  - SD (1.2.4) by Arduino, SparkFun: https://www.arduino.cc/reference/en/libraries/sd/
+                  for SD card support
+  - Adafruit 9DOF (1.1.4) by Adafruit: https://github.com/adafruit/Adafruit_9DOF
+                  for the 9DOF breakout board by Adafruit
+  - Adafruit L3GD20 U (2.0.3) by Adafruit: https://github.com/adafruit/Adafruit_L3GD20_U
+                  Driver for the gyro on the 9DOF breakout board by Adafruit
+  - Adafruit LSM303DLHC (1.0.4) by Adafruit: https://github.com/adafruit/Adafruit_LSM303DLHC
+                  Old driver for 9DOF breakout board (see README on GitHub for newer libraries), but still works.
+  - Adafruit BusIO (1.16.1) by Adafruit: https://github.com/adafruit/Adafruit_BusIO
+                  for SPI and I2C abstraction
+  - Adafruit Unified Sensor (1.1.14) by Adafruit: https://github.com/adafruit/Adafruit_Sensor
+                  For sensor compatibility and abstraction
+  - RTClib (2.1.4) by Adafruit: https://github.com/adafruit/RTClib
+                  For RTC DS1307, also support others
+  - ESP-Google-Sheet-Client (1.4.4) by Mobizt: https://github.com/mobizt/ESP-Google-Sheet-Client
+                  For Google Sheets Connection
+  
+  REQUIRED BOARD PACKAGES (install by searching for name in Arduino IDE -> Boards Manager):
+  - esp32 by Espressif: https://github.com/espressif/arduino-esp32
+                  For ESP32 support in Arduino IDE
+  
+*/
+```
+
+**Lines 37 - 69: Import necessary libraries**
+
+``` c++
+// _______ LIBRARIES ________________________________________________________
+// Arduino:
+#include <Arduino.h>
+//
+// For ESP32 wifi connection:
+#include <WiFi.h>
+//
+// For Adafruit 9DOF sensor, from example: Adafruit 9DOF -> pitchrollheading, see https://github.com/adafruit/Adafruit_9DOF
+#include <Adafruit_Sensor.h>
+#include <Adafruit_LSM303_U.h>
+#include <Adafruit_L3GD20_U.h>
+#include <Adafruit_9DOF.h>
+//
+// For NTP timestamp
+// commented out, as th time stamp was taken from the RTC.
+// if you want to use the NTP server for the time stamp (which requires internet connection),
+// uncomment
+// #include "time.h"
+//
+// For RTC DS1307
+#include "RTClib.h"
+//
+// For Google Sheets Connection; see https://github.com/mobizt/ESP-Google-Sheet-Client
+#include <ESP_Google_Sheet_Client.h>
+//
+// For SD/SD_MMC mounting helper
+#include <GS_SDHelper.h>
+//
+// For microSD Card
+#include "FS.h"
+#include "SD.h"
+#include <SPI.h>
+// __________________________________________________________________________
+```
+
+**Lines 73 - 77: define Wifi network credentials, currently ETH IoT**
+
+``` c++
+// ______ WIFI CONNECTION______________
+// access to the ETH IOT wifi network
+#define WIFI_SSID "See datalogger_credentials.pdf Item 13"
+#define WIFI_PASSWORD "See datalogger_credentials.pdf Item 14"
+// ____________________________________
+```
+
+**Lines 81 - 96: Define variables for Google Cloud and Spreadsheet connection**
+
+``` c++
+// _______ GOOGLE SHEETS CONNECTION _______________________________________
+// Google Project ID
+#define PROJECT_ID "esp32-datalogger-tests"
+// 
+// Service Account's client email
+#define CLIENT_EMAIL "See datalogger_credentials.pdf Item 8"
+//
+// Service Account's private key
+const char PRIVATE_KEY[] PROGMEM = "See datalogger_credentials.pdf Item 10";
+//
+// The ID of the spreadsheet where you'll publish the data
+const char spreadsheetId[] = "See datalogger_credentials.pdf Item 11";
+//
+// Token Callback function
+void tokenStatusCallback(TokenInfo info);
+// ____________________________________________________________________________
+```
+
+**Lines 99 - 119: Define NTP time server variables and functions** (commented out at the moment, as we get the time from the RTC)
+
+``` c++
+ /*
+// _________ NTP TIME SERVER CONNECTION ___________
+// NTP server to request epoch time
+ const char* ntpServer = "pool.ntp.org";
+//
+// Variable to save current epoch time
+unsigned long epochTime; 
+//
+// Function that gets current epoch time
+unsigned long getTime() {
+  time_t now;
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    //Serial.println("Failed to obtain time");
+    return(0);
+  }
+  time(&now);
+  return now;
+}
+// ________________________________________________
+*/
+```
+
+**Lines 122 - 139: Define variables for the RTC DS1307**
+
+As the 9DOF is connected to the breadboard, the RTC had to be moved from the default I2C pins 21 and 22 to the non-default pins 32 and 33 which are specified on lines 128 and 129. If the 9DOF is removed (like in the custom PCBs described in @sec-pcb-design), the RTC can be connected to the default pins in it's place and the manual pin assignment can be commented out.
+
+``` c++
+// ________ REAL TIME CLOCK Adafruit RTC DS1307 __________________
+// I2C Address: (Found using the I2C Scanner by Rui Santos (https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/))
+// rtc:   0x69
+//
+// Setting up I2C Connection:
+// Define pins:
+#define SDA_2 33
+#define SCL_2 32
+// create wire instane
+// TwoWire I2Ctwo = TwoWire(1);
+//
+// assign ID
+RTC_DS1307 rtc;
+
+// define weekdays
+char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+
+// ________________________________________________________________
+```
+
+**Lines 143 - 203: Define SD card functions**
+
+The SD Card is connected to the default ESP32 SPI pins (23, 19, 18, 5) which require no further setup.
+
+``` c++
+// ________ MICRO SD CARD ________________________________________
+// String for data entry
+String dataMessage;
+// Initialize SD card
+void initSDCard(){
+   if (!SD.begin()) {
+    Serial.println("Card Mount Failed");
+    return;
+  }
+  uint8_t cardType = SD.cardType();
+
+  if(cardType == CARD_NONE){
+    Serial.println("No SD card attached");
+    return;
+  }
+  Serial.print("SD Card Type: ");
+  if(cardType == CARD_MMC){
+    Serial.println("MMC");
+  } else if(cardType == CARD_SD){
+    Serial.println("SDSC");
+  } else if(cardType == CARD_SDHC){
+    Serial.println("SDHC");
+  } else {
+    Serial.println("UNKNOWN");
+  }
+  uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+  Serial.printf("SD Card Size: %lluMB\n", cardSize);
+}
+// Write to the SD card
+void writeFile(fs::FS &fs, const char * path, const char * message) {
+  Serial.printf("Writing file: %s\n", path);
+
+  File file = fs.open(path, FILE_WRITE);
+  if(!file) {
+    Serial.println("Failed to open file for writing");
+    return;
+  }
+  if(file.print(message)) {
+    Serial.println("File written");
+  } else {
+    Serial.println("Write failed");
+  }
+  file.close();
+}
+// Append data to the SD card
+void appendFile(fs::FS &fs, const char * path, const char * message) {
+  Serial.printf("Appending to file: %s\n", path);
+
+  File file = fs.open(path, FILE_APPEND);
+  if(!file) {
+    Serial.println("Failed to open file for appending");
+    return;
+  }
+  if(file.print(message)) {
+    Serial.println("Message appended");
+  } else {
+    Serial.println("Append failed");
+  }
+  file.close();
+}
+// _______________________________________________________________
+```
+
+**Lines 207 - 241: Define the Adafruit 9DOF functions**
+
+The specific I2C Connection setup is commented out, as the sensor is connected to the default I2C pins on the ESP32 (21 and 22), which are accessed natively. As the Adafruit 9DOF breakout consists of three different chips which all have their individual I2C address (see the top part of the code below), assigning a new gateway on non-default pins manually is quite tricky and the 9DOF was just connected to the default I2C pins. Therefore the RTC, which also communicates via I2C, is connected to the non-default pins 32 and 33, which were defined on lines 128 and 129, and as the RTC is only one chip with a single address, this was quite easy. When the 9DOF is not connected to the circuit (like in the custom PCBs described in @sec-pcb-design), the RTC is connected to the default I2C pins 21 and 22, and the manual pin assignment on lines 128 and 129 can be commented out.
+
+``` c++
+// _________ Adafruit 9DOF Sensor ____________________
+// I2C Addresses: (Found using the I2C Scanner by Rui Santos (https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/) and the Adafruit Documentation: https://learn.adafruit.com/i2c-addresses/the-list)
+// accel: 0x19
+// mag:   0x1E
+// dof:   0x69
+// 
+// Assign a unique ID to the sensors
+Adafruit_9DOF                dof   = Adafruit_9DOF();
+Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
+Adafruit_LSM303_Mag_Unified   mag   = Adafruit_LSM303_Mag_Unified(30302);
+//
+// Setting up I2C Connection:
+// Define pins:
+// #define SDA_1 21
+// #define SCL_1 22
+// Create wire instance
+// TwoWire I2C_9dof = TwoWire(0);
+
+// Initialize Sensors
+void initSensors()
+{
+  if(!accel.begin())
+  {
+    /* There was a problem detecting the LSM303 ... check your connections */
+    Serial.println(F("Ooops, no LSM303 detected ... Check your wiring!"));
+    while(1);
+  }
+  if(!mag.begin())
+  {
+    /* There was a problem detecting the LSM303 ... check your connections */
+    Serial.println("Ooops, no LSM303 detected ... Check your wiring!");
+    while(1);
+  }
+}
+// ___________________________________________________
+```
+
+Lines 245 - 338 contain the setup() function, which initializes everything on boot. It has the following parts:
+
+**Lines 247 - 250: Serial communication setup with baud rate 115200**
+
+Serial communication to the laptop (to view output in the Serial Monitor in Arduino IDE) only works with the ESP32 connected to the laptop via USB. Make sure to select the correct baud rate (115200) to view the output correctly. If the ESP is not connected to the laptop via serial, it still logs data to SD and the Web, you just can't see the serial output.
+
+``` c++
+Serial.begin(115200);
+Serial.println();
+Serial.println("Setting up hopefully.......");
+Serial.println();
+```
+
+**Line 252: SD Card Initialization**
+
+``` c++
+initSDCard();
+```
+
+**Lines 254 - 267: I2C Setup**
+
+This is the first part of setting up the I2C connection to both the RTC and the 9DOF. As the 9DOF is on the default I2C pins, the default line can be chosen in Wire.begin(). The RTC is connected to non-default pins, which were defined previously in variables SDA_2 and SCL_2, and are initialized on Wire1 with Wire1.begin(SDA_2, SCL_2).
+
+``` c++
+// I2C Setup _______________________________________
+// I2C_9dof.begin(SDA_1, SCL_1, 100000); 
+// I2C_rtc.begin(SDA_2, SCL_2, 100000);
+//
+// I2C for Adafruit 9DOF
+Wire.begin();
+// I2C for RTC DS1307
+Wire1.begin(SDA_2, SCL_2);
+bool status_rtc = rtc.begin(&Wire1);  
+if (!status_rtc) {
+Serial.println("Could not find RTC at 0x68");
+while (1);
+}
+// ________________________________________________
+```
+
+**Lines 270 - 285: Check that RTC is connected and running**
+
+``` c++
+// RTC DS1307 Setup _______________________________
+if (! rtc.begin(&Wire1)) {
+  Serial.println("Couldn't find RTC");
+  Serial.flush();
+  while (1) delay(10);
+}
+if (! rtc.isrunning()) {
+  Serial.println("RTC is NOT running, let's set the time!");
+  // When time needs to be set on a new device, or after a power loss, the
+  // following line sets the RTC to the date & time this sketch was compiled
+  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  // This line sets the RTC with an explicit date & time, for example to set
+  // January 21, 2014 at 3am you would call:
+  // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+}
+// ________________________________________________
+```
+
+**Lines 288 - 301: SD card setup and file creation**
+
+Checks if SD card is connected and if a file data.txt (where the data is going to be saved to) exists. If not, it creates a new data.txt file.
+
+``` c++
+// SD Card Setup: _______________________________________________
+// If the data.txt file doesn't exist
+// Create a file on the SD card and write the data labels
+File file = SD.open("/data.txt");
+if(!file) {
+  Serial.println("File doesn't exist");
+  Serial.println("Creating file...");
+  writeFile(SD, "/data.txt", "Timestamp, Pitch, Roll, Heading \r\n");
+}
+else {
+  Serial.println("File already exists");  
+}
+file.close();
+// ________________________________________________________
+```
+
+**Lines 304 - 307: NTP time server setup**
+
+As we get the time stamp from the RTC, this is commented out. If you want to get the NTP time, please comment out all RTC-related variables and functions, as they might interfere.
+
+``` c++
+// NTP Server Setup ____________________________
+//Configure NTP time
+//configTime(0, 0, ntpServer);
+// _____________________________________________
+```
+
+**Line 310: 9DOF Sensor Initialization**
+
+``` c++
+initSensors();
+```
+
+**Lines 312 - 337: Wifi and Google Sheets Connection Setup**
+
+``` c++
+// Google Sheets Connection Setup __________________________________________________________
+GSheet.printf("ESP Google Sheet Client v%s\n\n", ESP_GOOGLE_SHEET_CLIENT_VERSION);
+//
+// Connect to Wi-Fi
+WiFi.setAutoReconnect(true);
+WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+//
+Serial.print("Connecting to Wi-Fi");
+while (WiFi.status() != WL_CONNECTED) {
+  Serial.print(".");
+  delay(1000);
+}
+Serial.println();
+Serial.print("Connected with IP: ");
+Serial.println(WiFi.localIP());
+Serial.println();
+//
+// Set the callback for Google API access token generation status (for debug only)
+GSheet.setTokenCallback(tokenStatusCallback);
+//
+// Set the seconds to refresh the auth token before expire (60 to 3540, default is 300 seconds)
+GSheet.setPrerefreshSeconds(10 * 60);
+//
+// Begin the access token generation for Google API authentication
+GSheet.begin(CLIENT_EMAIL, PROJECT_ID, PRIVATE_KEY);
+// ___________________________________________________________________________________
+```
+
+**Lines 341 - 344: Set the timer variables**
+
+Here you can set the interval for the data readout, which is ***timerDelay***. The actual interval is timerDelay+1s, so for an interval of 2 seconds per data readout, set timerDelay = 1, and for 1 minute, set timerDelay = 59. Please leave lastTime = 0, as this is just a placeholder for the interval loop.
+
+``` c++
+// Timer Variables for the data readout ______________
+unsigned long lastTime = 0;  
+unsigned long timerDelay = 1;
+// _______________________________________________________
+```
+
+Lines 347 - 443 contain the loop() function, which is executed over and over again until the microcontroller is given another command.
+
+**Line 349: Createbool for Google Sheets connection**
+
+``` c++
+bool ready = GSheet.ready();
+```
+
+**Line 352: Get time from RTC and store it in variable *now***
+
+``` c++
+DateTime now = rtc.now();
+```
+
+**Line 355 Checks if it's time for a new data readout**
+
+Based on the interval defined in timerDelay on Line 343
+
+``` c++
+if (ready && now.unixtime() - lastTime > timerDelay){
+```
+
+If this returns true, lines 356 to 441 are executed:
+
+**Line 356 Sets *lastTime* to the current time**
+
+``` c++
+lastTime = now.unixtime();
+```
+
+**Line 358 Sets up the object response for the Google Sheet connection**
+
+``` c++
+FirebaseJson response;
+```
+
+**Lines 360 and 361 print a message to the Serial Monitor**
+
+That the values are being appended to the spreadsheet
+
+``` c++
+Serial.println("\nAppend spreadsheet values...");
+Serial.println("----------------------------");
+```
+
+**Line 358 Sets up the object valueRange for the Google Sheet connection.**
+
+In there, the data row for the spreadsheet will be stored.
+
+``` c++
+FirebaseJson valueRange;
+```
+
+**Lines 368 and 369: Get the NTP timestamp**
+
+Commented out as we use the RTC.
+
+``` c++
+// Get NTP timestamp; disabled at the moment because we get the timestamp from the RTC
+// epochTime = getTime();
+```
+
+**Lines 371 - 386: Build the string for the time stamp**
+
+If you want a differently formatted time stamp or more/less info, change these lines
+
+``` c++
+// Create RTC timestamp string ________________
+String timestamp = "";
+timestamp += daysOfTheWeek[now.dayOfTheWeek()];
+timestamp += ", ";
+timestamp += now.year();
+timestamp += '/';
+timestamp += now.month();
+timestamp += '/';
+timestamp += now.day();
+timestamp += ' ';
+timestamp += now.hour();
+timestamp += ':';
+timestamp += now.minute();
+timestamp += ':';
+timestamp += now.second();
+// ____________________________________________
+```
+
+**Lines 388 - 407: Get the 9DOF Sensor readings**
+
+They are stored in the variables dof_pitch, dof_roll, and dof_heading
+
+``` c++
+// Get sensor readings ____________________________________________
+float dof_pitch = 0;
+float dof_roll = 0;
+float dof_heading = 0;
+//
+sensors_event_t accel_event;
+sensors_event_t mag_event;
+sensors_vec_t   orientation;
+accel.getEvent(&accel_event);
+if (dof.accelGetOrientation(&accel_event, &orientation))
+{
+  dof_pitch = orientation.pitch;
+  dof_roll = orientation.roll;
+}
+mag.getEvent(&mag_event);
+if (dof.magGetOrientation(SENSOR_AXIS_Z, &mag_event, &orientation))
+{
+  dof_heading = orientation.heading;
+}
+// ______________________________________________________________
+```
+
+**Lines 410 - 416: Write the data as one line to the SD card**
+
+``` c++
+// write data to SD Card ____________________________________________________________
+dataMessage = timestamp + "," + String(dof_pitch) + "," + String(dof_roll) + "," + String(dof_heading)+ "\r\n";
+Serial.print("Saving data to microSD: ");
+Serial.println(dataMessage);
+//Append the data to file
+appendFile(SD, "/data.txt", dataMessage.c_str());
+// ____________________________________________________________________________
+```
+
+**Lines 421 - 427: Build the valueRange object for the Google Sheets entry**
+
+Here, the format of the Google Sheet entry is defined and the timestamp and variables are added to different columns
+
+``` c++
+// create entry array
+valueRange.add("majorDimension", "COLUMNS");
+// add timestamp to array
+valueRange.set("values/[0]/[0]", timestamp);
+valueRange.set("values/[1]/[0]", dof_pitch);
+valueRange.set("values/[2]/[0]", dof_roll);
+valueRange.set("values/[3]/[0]", dof_heading);
+```
+
+**Lines 429 - 441: Add data to Google Sheets**
+
+``` c++
+// For Google Sheet API ref doc, go to https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets.values/append
+// Append values to the spreadsheet
+bool success = GSheet.values.append(&response /* returned response */, spreadsheetId /* spreadsheet Id to append */, "Sheet1!A1" /* range to append */, &valueRange /* data range to append */);
+if (success){
+    response.toString(Serial, true);
+    valueRange.clear();
+}
+else{
+    Serial.println(GSheet.errorReason());
+}
+Serial.println();
+Serial.println(ESP.getFreeHeap());
+// ___________________________________________________________________________
+```
+
+**Lines 444 - 454: Misc Google Sheets Token code**
+
+Here, the token callback is executed.
+
+``` c++
+// misc Google Sheets Token code _________________________________________________________
+void tokenStatusCallback(TokenInfo info){
+    if (info.status == token_status_error){
+        GSheet.printf("Token info: type = %s, status = %s\n", GSheet.getTokenType(info).c_str(), GSheet.getTokenStatus(info).c_str());
+        GSheet.printf("Token error: %s\n", GSheet.getTokenError(info).c_str());
+    }
+    else{
+        GSheet.printf("Token info: type = %s, status = %s\n", GSheet.getTokenType(info).c_str(), GSheet.getTokenStatus(info).c_str());
+    }
+}
+// ___________________________________________________________________________________
+```
+
+#### datalogger_flowmeter.ino {#sec-datalogger_flowmeter.ino}
+
+This code reads out the analog flow meter values, saves them to the microSD card and sends them to the Cloud. It is very similar to datalogger_9DOF.ino (described in @sec-code-for-adafruit-9dof-pitch-roll-and-heading above), with the main changes being:
+
+-   The Adafruit 9DOF has been removed from the circuit and all related code parts have been deleted and are not required, as the sensor values come from the flow meter.
+
+-   The RTC has been moved from the non-default I2C pins 32 and 33 to the default I2C pins 21 and 22, as the 9DOF is no longer connected to those pins.
+
+How this changes the code is described as follows:
+
+**Lines 1 - 55: The Adafruit 9DOF libraries are no longer required**
+
+``` c++
+/*
+  ESP32 Data Logger with the biogas flow meter, by Till Häussner
+
+  SOURCES for the code parts:
+  - Google Sheets Client: Rui Santos, https://RandomNerdTutorials.com/esp32-datalogging-google-sheets/
+                  Adapted from the examples of the Library Google Sheet Client Library for Arduino devices: https://github.com/mobizt/ESP-Google-Sheet-Client
+  - I2C Scanning and Debugging: Rui Santos, https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/
+  - Adafruit RTC DS1307 Library: https://github.com/adafruit/RTClib
+  - microSD integration: Rui Santos, https://randomnerdtutorials.com/esp32-microsd-card-arduino/
+
+  REQUIRED LIBRARIES (install by searching for name in Arduino IDE -> Library Manager):
+  - SD (1.2.4) by Arduino, SparkFun: https://www.arduino.cc/reference/en/libraries/sd/
+                  for SD card support
+  - Adafruit BusIO (1.16.1) by Adafruit: https://github.com/adafruit/Adafruit_BusIO
+                  for SPI and I2C abstraction
+  - Adafruit Unified Sensor (1.1.14) by Adafruit: https://github.com/adafruit/Adafruit_Sensor
+                  For sensor compatibility and abstraction
+  - RTClib (2.1.4) by Adafruit: https://github.com/adafruit/RTClib
+                  For RTC DS1307, also support others
+  - ESP-Google-Sheet-Client (1.4.4) by Mobizt: https://github.com/mobizt/ESP-Google-Sheet-Client
+                  For Google Sheets Connection
+  
+  REQUIRED BOARD PACKAGES (install by searching for name in Arduino IDE -> Boards Manager):
+  - esp32 by Espressif: https://github.com/espressif/arduino-esp32
+                  For ESP32 support in Arduino IDE
+  
+*/
+
+// _______ LIBRARIES ________________________________________________________
+// Arduino:
+#include <Arduino.h>
+//
+// For ESP32 wifi connection:
+#include <WiFi.h>
+//
+// For NTP timestamp
+// commented out, as th time stamp was taken from the RTC.
+// if you want to use the NTP server for the time stamp (which requires internet connection),
+// uncomment
+// #include "time.h"
+//
+// For RTC DS1307
+#include "RTClib.h"
+//
+// For Google Sheets Connection; see https://github.com/mobizt/ESP-Google-Sheet-Client
+#include <ESP_Google_Sheet_Client.h>
+//
+// For SD/SD_MMC mounting helper
+#include <GS_SDHelper.h>
+//
+// For microSD Card
+#include "FS.h"
+#include "SD.h"
+#include <SPI.h>
+// __________________________________________________________________________
+```
+
+**Lines 193 - 196: The Adafruit 9DOF sensor has been replaced by the analog flow meter, with the corresponding variables:**
+
+``` c++
+// _________ Analog Flow Meter ____________________
+const int flow_meter_Pin = 2; // Change this to whatever GPIO the flow meter is connected to
+int flow_meter_value = 0;
+// ___________________________________________________
+```
+
+**Lines 209 - 239: I2C Setup**
+
+As the RTC was moved to the default I2C pins as the only I2C component in the circuit, it can run over the default wire.Therefore, the manually assigned Wire1 been commented out (Line 215) and the assignment in rtc.begin() has been removed (Lines 216 and 225)
+
+``` c++
+// I2C Setup _______________________________________
+// I2C_9dof.begin(SDA_1, SCL_1, 100000); 
+// I2C_rtc.begin(SDA_2, SCL_2, 100000);
+//
+// I2C for RTC DS1307
+Wire.begin();
+// Wire1.begin(SDA_2, SCL_2);  (commented out as RTC is on default I2C pins)
+bool status_rtc = rtc.begin();  
+if (!status_rtc) {
+  Serial.println("Could not find RTC at 0x68");
+  while (1);
+}
+// ________________________________________________
+
+
+// RTC DS1307 Setup _______________________________
+if (! rtc.begin()) {
+  Serial.println("Couldn't find RTC");
+  Serial.flush();
+  while (1) delay(10);
+}
+if (! rtc.isrunning()) {
+  Serial.println("RTC is NOT running, let's set the time!");
+  // When time needs to be set on a new device, or after a power loss, the
+  // following line sets the RTC to the date & time this sketch was compiled
+  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  // This line sets the RTC with an explicit date & time, for example to set
+  // January 21, 2014 at 3am you would call:
+  // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+}
+// ________________________________________________
+```
+
+**Lines 242 - 255 MicroSD Card data.txt file Setup**
+
+Because the sensor values are not pitch, roll, and heading anymore, but a single analog value, the data format for the data.txt file on the microSD card has been changed to just *"Timestamp, Value"* on Line 249.
+
+``` c++
+// SD Card Setup: _______________________________________________
+// If the data.txt file doesn't exist
+// Create a file on the SD card and write the data labels
+File file = SD.open("/data.txt");
+if(!file) {
+  Serial.println("File doesn't exist");
+  Serial.println("Creating file...");
+  writeFile(SD, "/data.txt", "Timestamp, Value \r\n");
+}
+else {
+  Serial.println("File already exists");  
+}
+file.close();
+// ________________________________________________________
+```
+
+**Lines 342 - 344: Sensor readings**
+
+The sensor is read out in one simple line with the analogRead() funcion ([more info on analog ESP32 inputs here](https://randomnerdtutorials.com/esp32-adc-analog-read-arduino-ide/))
+
+``` c++
+// Get sensor readings ____________________________________________
+flow_meter_value = analogRead(flow_meter_Pin);
+// ______________________________________________________________
+```
+
+**Lines 347 - 353: Write data to MicroSD card**
+
+The dataMessage on line 348 has been changed to just the timestamp and the single value reading
+
+``` c++
+// write data to SD Card __________________________________________
+dataMessage = timestamp + "," + String(flow_meter_value) + "\r\n";
+Serial.print("Saving data to microSD: ");
+Serial.println(dataMessage);
+//Append the data to file
+appendFile(SD, "/data.txt", dataMessage.c_str());
+// ________________________________________________________________
+```
+
+**Lines 357 - 376: Write data to Google Sheets**
+
+Here as well, the record has been changed to just the timestamp and a single value reading on line 362.
+
+``` c++
+// Write data to Google Sheets ___________________________________________________
+// create entry array
+valueRange.add("majorDimension", "COLUMNS");
+// add timestamp to array
+valueRange.set("values/[0]/[0]", timestamp);
+valueRange.set("values/[1]/[0]", flow_meter_value);
+// For Google Sheet API ref doc, go to https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets.values/append
+// Append values to the spreadsheet
+bool success = GSheet.values.append(&response /* returned response */, spreadsheetId /* spreadsheet Id to append */, "Sheet1!A1" /* range to append */, &valueRange /* data range to append */);
+if (success){
+    response.toString(Serial, true);
+    valueRange.clear();
+}
+else{
+    Serial.println(GSheet.errorReason());
+}
+Serial.println();
+Serial.println(ESP.getFreeHeap());
+// ___________________________________________________________________________
+```
+
+#### analog_readout_simple.ino {#sec-analog_readout_simple.ino}
+
+This is just a quick sketch to read out the values from Gian's biogas flow meter to the serial monitor. This does not store the values anywhere else and does not require either the RTC or SD card nor the 9DOF, just the flowmeter and the ESP32 board. The code is largely based on this tutorial by Sara Santos: <https://randomnerdtutorials.com/esp32-adc-analog-read-arduino-ide/> and explained in the following:
+
+**Line 3: Define flowmeter pin**
+
+Which ESP32 pin is the flowmeter connected to? By default, GPIO 2 is chosen.
+
+``` c++
+const int flow_meter_Pin = 2;
+```
+
+**Line 4: Initialize value variable**
+
+``` c++
+int value = 0;
+```
+
+**Lines 6 - 10: Set up communication with the Arduino IDE Serial Monitor with baud rate 115200:**
+
+``` c++
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(115200);
+  delay(1000);
+}
+```
+
+**Lines 12 - 17: Continually read the analog flow meter values and print them to the Serial Monitor, then wait half a second**
+
+``` c++
+void loop() {
+  // put your main code here, to run repeatedly:
+  value = analogRead(flow_meter_Pin);
+  Serial.println(value);
+  delay(500);
+}
+```
+
+# PCB Design {#sec-pcb-design}
+
+With the breadboard circuit working nicely, the next step was to design a PCB with the same components. With this, scalability and reliability can be ensured, and the whole assembly process is made more efficient and robust. Two versions of the circuit were designed using [EasyEDA](https://easyeda.com/editor); the **GHE Data Logger Header Board** (described in @sec-ghe-data-logger-header-board ) and the **GHE Data Logger** (described in @sec-ghe-data-logger). The schematics, fabrication prints, gerber files, 3D models, BOM- and Pick&Place lists can be found in /hardware/design/pcb.
+
+## GHE Data Logger Header Board {#sec-ghe-data-logger-header-board}
+
+The idea here was to basically create a robust frame for all breakout boards also used in the breadboard prototype with ready-printed connections. A render of the PCB is shown in @fig-ghe-datalogger-header-pcb.
+
+![The GHE Data Logger Header Board PCB without the female pin headers](images/GHE_datalogger_headerboard_V1_3Dview_without_headers.png){#fig-ghe-datalogger-header-pcb}
+
+This PCB can be ordered without the female headers as Assembly, as there are four small capacitors to protect the power pins, which would be difficult to solder by hand. When ordering, make sure to delete the female headers that are meant to be soldered by hand from the BOM and Pick&Place files. When receiving the printed board like in @fig-ghe-datalogger-header-pcb, the next step would be to solder on the female headers ([like these ones from Mouser](https://eu.mouser.com/ProductDetail/Chip-Quik/HDR100IMP40F-G-V-TH?qs=Wj%2FVkw3K%252BMB%252BpQKGESbrjQ%3D%3D)), and the PCB would look like the render in @fig-ghe-datalogger-header-pcb-headers . The breakout boards - specifically the [Adafruit RTC DS3231 board](https://www.adafruit.com/product/3013) and the [MicroSD breakout](https://www.adafruit.com/product/254) - need to be connected via [bent pin headers like this one](https://eu.mouser.com/ProductDetail/Chip-Quik/HDR100IMP40F-G-V-TH?qs=Wj%2FVkw3K%252BMB%252BpQKGESbrjQ%3D%3D) (in order for them to be mounted vertically onto the PCB like on the breadboard) which also need to be soldered on. This soldering can easily be done as part of a Hackathon or or similar in Malawi, to engage students in electronics and building the data loggers.
+
+![The GHE Data Logger Header Board PCB with the female pin headers](images/GHE_datalogger_headerboard_V1_3Dview.png){#fig-ghe-datalogger-header-pcb-headers}
+
+The layout of this PCB is very similar to the layout of the breadboard; the individual component connections are shown in @tbl-pcb-header. Only the MicroSD, RTC and sensor connectors are directly connected to the ESP32, all other pins are broken out at the top of the board in one big pin header for easy adjustments. The connector for the cellular module BK-A7670E is also not connected directly, but has it's own extra header below the big one at the top for proper connections, as I didn't have time to properly test the cellular module. The fabrication print of the PCB with more visible connections and the dimensions is shown in @fig-ghe-datalogger-header-fab-print .
+
+| Component           | Pin           | ESP32 GPIO | Signal Type                                                                  |
+|------------|------------|------------|-------------------------------------|
+| Sensor 1            | Analog Output | 4          | [Analog](https://randomnerdtutorials.com/esp32-adc-analog-read-arduino-ide/) |
+| Sensor 2            | Analog Output | 2          | [Analog](https://randomnerdtutorials.com/esp32-adc-analog-read-arduino-ide/) |
+| Adafruit RTC DS3231 | SDA           | 21         | [I2C](https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/)  |
+| Adafruit RTC DS3231 | SCL           | 22         | [I2C](https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/)  |
+| Adafruit MicroSD    | CS            | 5          | [SPI](https://randomnerdtutorials.com/esp32-spi-communication-arduino/)      |
+| Adafruit MicroSD    | DI            | 23         | [SPI](https://randomnerdtutorials.com/esp32-spi-communication-arduino/)      |
+| Adafruit MicroSD    | DO            | 19         | [SPI](https://randomnerdtutorials.com/esp32-spi-communication-arduino/)      |
+| Adafruit MicroSD    | CLK           | 18         | [SPI](https://randomnerdtutorials.com/esp32-spi-communication-arduino/)      |
+
+: The individual connections for the GHE Data Logger Header Board {#tbl-pcb-header}
+
+![The fabricaion print of the GHE Data Logger Header Board PCB](images/GHE_datalogger_headerboard_V1_fabprint.png){#fig-ghe-datalogger-header-fab-print}
+
+## GHE Data Logger {#sec-ghe-data-logger}
+
+As a cheaper and more robust option for scalability, a complete PCB was drawn without the need need for external breakout boards for the RTC, MicroSD card and the ESP32, where these components are directly mounted on the board as shown in @fig-ghe-datalogger. The individual connections are the same for both PCBs, as shown again in @tbl-pcb.
+
+![The GHE Data Logger PCB](images/GHE_datalogger_V1_3Dview4.png){#fig-ghe-datalogger}
+
+| Component         | Pin           | ESP32 GPIO | Signal Type                                                                  |
+|------------|------------|------------|-------------------------------------|
+| Sensor 1          | Analog Output | 4          | [Analog](https://randomnerdtutorials.com/esp32-adc-analog-read-arduino-ide/) |
+| Sensor 2          | Analog Output | 2          | [Analog](https://randomnerdtutorials.com/esp32-adc-analog-read-arduino-ide/) |
+| RTC DS3231        | SDA           | 21         | [I2C](https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/)  |
+| RTC DS3231        | SCL           | 22         | [I2C](https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/)  |
+| MicroSD Connector | CS            | 5          | [SPI](https://randomnerdtutorials.com/esp32-spi-communication-arduino/)      |
+| MicroSD Connector | DI            | 23         | [SPI](https://randomnerdtutorials.com/esp32-spi-communication-arduino/)      |
+| MicroSD Connector | DO            | 19         | [SPI](https://randomnerdtutorials.com/esp32-spi-communication-arduino/)      |
+| MicroSD Connector | CLK           | 18         | [SPI](https://randomnerdtutorials.com/esp32-spi-communication-arduino/)      |
+
+: The individual connections for the GHE Data Logger {#tbl-pcb}
+
+On this PCB, the entire ESP32 development board is integrated directly into the circuit, as seen in the top left of @fig-ghe-datalogger-fab-print . This reduces cost and materials needed and also makes the board more rebust. All unused connections of the ESP32 are again broken out to a header row at the top. Furthermore, the DS3231 (with the battery connector) and the MicroSD connector are both integrated as well. Like in the Header Board PCB, the BK-A7670E is connected via a header to extra pinouts at the top for easy testing.
+
+![The fabrication print of the GHE Data Logger PCB](images/GHE_datalogger_V1_fabprint.png){#fig-ghe-datalogger-fab-print}
+
+The schematics and fabrication prints of the DS3231 and the microSD breakout board used for this PCB can be found in hardware/pcb/references. All other sources are listed in the schematics of the respective PCB.
+
+# Future Work {#sec-future-work}
+
+## Test the cellular module BK-A7670E
+
+Unfortunately, I haven't had enough time to fully check the cellular module. I spent some time researching different cellular breakout boards, and the BK-A7670E seemed like the best and most affordable option, which was [ordered here on AliExpress](https://www.aliexpress.com/item/1005004176439432.html?spm=a2g0o.detail.pcDetailTopMoreOtherSeller.3.6285NVMdNVMdVY&gps-id=pcDetailTopMoreOtherSeller&scm=1007.40050.354490.0&scm_id=1007.40050.354490.0&scm-url=1007.40050.354490.0&pvid=d7865d29-dfaa-4ea5-84e7-75839fcac57a&_t=gps-id%3ApcDetailTopMoreOtherSeller%2Cscm-url%3A1007.40050.354490.0%2Cpvid%3Ad7865d29-dfaa-4ea5-84e7-75839fcac57a%2Ctpp_buckets%3A668%232846%238115%232000&utparam-url=scene%3ApcDetailTopMoreOtherSeller%7Cquery_from%3A).
+
+The documentation and user manual for the board can be found in /hardware/testing. The software mentioned in the manual (sscom32E) can be found in /software.
+
+On the breakout boards, the board is connected regularly to the UART pins TX and RX, but for the PCBs, I just broke out all pins on the BK-A7670E to a separate header and positioned this below the main header for easy prototyping. With this, not only the RX and TX connections can be tested with flexibility but also the PWRKEY and SLEEP pins, which may be needed in order for the cellular not to draw too much power from the circuit and drain the power bank.
+
+**SIM Card:** For testing, the easiest thing is probably to order a free prepaid SIM Card. I ordered [this one from Yallo](https://www.yallo.ch/en/yallo_prepaid), which was super easy and free with some initial credit, which should be plenty for the small amounts of data we are sending.
+
+## PCB Testing
+
+The PCBs need to be ordered and tested with the components. Although EasyEDA has many good checks and automatic controls built in to detect mistakes in the connections and layouts, errors can always remain unnoticed. Therefore, the PCB should be checked thoroughly before ordering all 200.
+
+### Adjust the code for RTC DS3231
+
+As mentioned previously, the RTC DS1307 which was used for the prototypes ( @sec-data-logger-breadboard ) was therefore replaced with the high precision DS3231 in the PCBs. This should work just fine, but needs to be checked. For the GHE Data Logger Header Board, the [Adafruit DS3231 Breakout Board](https://www.adafruit.com/product/3013) needs to be ordered and connected. To work with the DS3231 on both PCBs, use the code from the [RTClib by Adafruit](https://github.com/adafruit/RTClib) ([as described here](https://learn.adafruit.com/adafruit-ds3231-precision-rtc-breakout/arduino-usage)) and go over the RTC parts of the code files datalogger_9DOF.ino (see @sec-code-for-adafruit-9dof-pitch-roll-and-heading) and/or datalogger_flowmeter.ino (see @sec-datalogger_flowmeter.ino ) to make the necessary changes.
+
+### Test with both sensors
+
+Make sure - once ready - to connect both sensors and test the PCB in full operation before ordering all 200. This will require minimal code changes to allow for two analog input values. For this, just follow the steps described in @sec-datalogger_flowmeter.ino.
+
+## PCB Improvements
+
+After testing, the PCB could be modified further, especially in the following points:
+
+-   The entire A7670E could directly be integrated into the board. While this would be quite some work, it would make probably everything cheaper and more robust.
+
+-   If integrating the A7670E into the board is too complicated, the breakout board BK-A7670E could remain connected via a header, but the pins could be connected directly to the ESP.
+
+-   The miscellaneous pinouts could be removed for a final version.
+
+-   Both PCBs have 4 layers currently (top, bottom, GND and Vcc). With some rerouting - especially for the header board - this could be reduced to 2 layers (top and bottom) for cost reduction
+
+-   The PCBs - especially the integrated one - could always be made smaller. Although size should not be a huge concern for this project, as the battery needs some space anyways.
+
+## Arduino Nano
+
+The [Arduino Nano boards](https://store.arduino.cc/pages/nano-family?_gl=1lczsbs_gcl_auNTk3NTc3NTg1LjE3MTg0MzMxNjk.FPAUNTk3NTc3NTg1LjE3MTg0MzMxNjk._gaMTkyNzc0MjE2Ni4xNzE4NDMzMTY3_ga_NEXN8H46L5MTcxODg4NjA2My4zLjEuMTcxODg4NjIwOC4wLjAuMTk2ODEwNjc4OQ.._fplc*d0FZbWRHY1c5NjNwUWJ0NUZOUFlBZkZ5JTJGYWQ4ODk1SDF2ZjVQendpQ1ZYeXpDam5FNEdWRDgyRDJ6V1dySXNKUFlQSVNUZ0FTeTdzbTcxYlFGQ3oxaU5pR2w5dzc3NkFJWEVnVjQzdTNtNktITVB3JTJCV1lFUHp6TWVpeGN2USUzRCUzRA..) could also be promising, and for bigger quantities is would be cool to support Arduino as an open-source project over Espressif. Therefore, it could be tried to integrate an Arduino Nano board into the circuit as opposed to an ESP32 board.
+
+## Complete the housing
+
+I modeled a rough housing in Solidworks, with an Assembly together with the power bank to see how everything fits, but this needs to be polished and printed, and the connections with the sensors and the solar panel or other external power source need to be added. The Solidworks and STL files can be found in /hardware/design.
+
+The battery could then also be looked at, and the power bank could maybe be replaced by an integrated battery with a direct solar panel connection for cost reduction, but maybe this would overcomplicate things...
+
+## Hardware in the workshop
+
+All components, boards and other hardware needed can be found in the workshop in the blue box labeled "GHE Data Logger". There are some soldered boards in there as well, but I've found making stable connections with these really tricky and thus stayed with the breadboard. In the small yellow crate there are more headers and other components like this [Adafruit Featherwing RTC + SD add-on](https://www.adafruit.com/product/2922) and other ESPs which can be used for further tinkering. The BK-A7670E cellular module is located in it's own little bag with both the LTE and GPS antenna.
+
+## Thank you!
+
+Thank you for pushing this project further! Let's hope our little box sends data from Malawi one day :)
+
+Till Häussner,
+
+Zürich, 2024-06-20
