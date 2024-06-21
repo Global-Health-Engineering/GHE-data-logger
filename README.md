@@ -27,7 +27,7 @@
 <br><br>
 <br>
 <b>Documentation available available on:<br \>
-<a href="https://global-health-engineering.github.io/pre-cleaning-system-design-for-HDPE-bottles/">Github pages</a>.
+<a href="https://global-health-engineering.github.io/GHE-data-logger/">Github pages</a>.
 </b>
 <br><br>
 The pdf version of this documentation is available in the <code>docs</code> directory of this repo.
@@ -35,7 +35,7 @@ The pdf version of this documentation is available in the <code>docs</code> dire
 
 # Background
 
-This repository contains an overview of an initial prototype for a data logging & transmission system, developed to gather data from remote biogas sensors in Malawi. The <a href="https://global-health-engineering.github.io/pre-cleaning-system-design-for-HDPE-bottles/">documentation</a> - and with it this repository - aim to act as a basis for future developers of the project. The prototype - also called the *GHE Data Logger V1* - was tested on a breadboard and then designed as two different robust PCBs. The next stages of development and recommendations for adjustments are described in section *4 Future Work* of the documentation. 
+This repository contains an overview of an initial prototype for a data logging & transmission system, developed to gather data from remote biogas sensors in Malawi. The <a href="https://global-health-engineering.github.io/GHE-data-logger/">documentation</a> - and with it this repository - aim to act as a basis for future developers of the project. The prototype - also called the *GHE Data Logger V1* - was tested on a breadboard and then designed as two different robust PCBs. The next stages of development and recommendations for adjustments are described in section *4 Future Work* of the documentation. 
 
 The prototype was developed within the Master's semester project by Till Häussner, contributing to a research project conducted by Natalie Boyd Williams at the Chair of [Global Health Engineering](https://ghe.ethz.ch/) at [ETH Zurich](https://ethz.ch/en.html). In her ETH postdoctoral fellowship project, she will investigate the carbon saving of installed biogas digesters in rural Malawi.
 
@@ -48,4 +48,4 @@ A render of one of the two PCBs is shown below:
 # License
 
 This work is licensed under [Creative Commons Attribution 4.0
-International](https://github.com/Global-Health-Engineering/ ###################### /blob/main/LICENSE.md).
+International](https://github.com/Global-Health-Engineering/GHE-data-logger/blob/main/LICENSE.md).
