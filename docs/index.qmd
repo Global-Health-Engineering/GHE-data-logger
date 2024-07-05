@@ -6,9 +6,38 @@ author:
   - name: Till Häussner
     orcid: 0009-0005-7617-9312
     email: thaeussner@student.ethz.ch
-    affiliation: 
+    attrubutes:
+      corresponding: false
+    role:
+      - conceptualization
+      - design
+      - testing
+    affiliation:
       - name: Global Health Engineering at ETH Zürich
         url: https://ghe.ethz.ch/
+  - name: Dr. Jakub Tkaczuk
+    orcid: 0000-0001-7997-9423
+    email: jtkaczuk@ethz.ch
+    attrubutes:
+      corresponding: true
+    role:
+      - supervision
+      - conceptualization
+    affiliation:
+      - name: Global Health Engineering at ETH Zürich
+        url: https://ghe.ethz.ch/
+  - name: Prof. Dr. Elizabeth Tilley
+    orcid: 0000-0002-2095-9724
+    email: tilleye@ethz.
+    attrubutes:
+      corresponding: false
+    role:
+      - supervision
+      - support
+    affiliation:
+      - name: Global Health Engineering at ETH Zürich
+        url: https://ghe.ethz.ch/
+
 abstract: ""
 
 number-sections: true
