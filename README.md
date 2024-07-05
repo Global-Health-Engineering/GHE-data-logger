@@ -13,7 +13,7 @@
 </a> *author*  
 - Jakub Tkaczuk <a href="https://orcid.org/0000-0001-7997-9423">
 <img alt="ORCID logo" src="https://info.orcid.org/wp-content/uploads/2019/11/orcid_16x16.png" width="16" height="16" /> 0000-0001-7997-9423
-</a> *supervisor, developer, maintainer*
+</a> *supervisor, developer, maintainer*  
 - Elizabeth Tilley <a href="https://orcid.org/0000-0002-2095-9724">
 <img alt="ORCID logo" src="https://info.orcid.org/wp-content/uploads/2019/11/orcid_16x16.png" width="16" height="16" /> 0000-0002-2095-9724
 </a> *supervisor*  
