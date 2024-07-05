@@ -20,7 +20,7 @@
 
 <br>
 <p align="middle"> 
-<img src="docs/images/ETH_GHE_logo_negative.svg" width=600>
+<img src="images/ETH_GHE_logo_negative.svg" width=600>
 <br><br>
 <br>
 <b>Documentation available available on:<br \>
