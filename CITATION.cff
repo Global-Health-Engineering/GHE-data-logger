@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "To cite this repository, use:"
+license: CC-BY-4.0
+title: "Data Logger for Remote Monitoring of Biogas"
+date-released: "2024-07-05"
+doi: 10.5281/zenodo.12664475
+type: software
+authors:
+  - family-names: Häussner
+    given-names: Till
+    email: thaeussner@student.ethz.ch
+    ordid: https://orcid.org/0009-0005-7617-9312
+  - family-names: Tkaczuk
+    given-names: Jakub
+    email: jtkaczuk@ethz.ch
+    orcid: https://orcid.org/0000-0001-7997-9423
+  - family-names: Tilley
+    given-names: Elizabeth
+    email: tilleye@ethz.ch
+    orcid: https://orcid.org/0000-0002-2095-9724
+contact:
+  - family-names: Tkaczuk
+    given-names: Jakub
+    email: jtkaczuk@ethz.ch
+    orcid: https://orcid.org/0000-0001-7997-9423
+version: 0.0.1

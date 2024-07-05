@@ -1,10 +1,11 @@
 <!-- badges: start -->
 
 [![](https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.12664475.svg)](https://doi.org/10.5281/zenodo.12664475)
 
 <!-- badges: end -->
 
-<h1>Development of a Data Logger for remote Biogas Sensors in Malawi</h1>
+<h1>Data Logger for Remote Monitoring of Biogas</h1>
 
 <b>Contributors</b>  
 - Till Häussner <a href="https://orcid.org/0009-0005-7617-9312">

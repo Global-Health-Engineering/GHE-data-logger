@@ -1,6 +1,6 @@
 ---
-title: "Biogas Data Logger Documentation"
-subtitle: "How to use and improve the biogas data logger developed as part of 2024-msc-sem-proj-thaeussner"
+title: "Data Logger for Remote Monitoring of Biogas"
+subtitle: "How to use and improve the data logger developed as a part of 2024-msc-sem-proj-thaeussner"
 date: 2024-06-20
 author:
   - name: Till Häussner
@@ -28,7 +28,7 @@ author:
         url: https://ghe.ethz.ch/
   - name: Prof. Dr. Elizabeth Tilley
     orcid: 0000-0002-2095-9724
-    email: tilleye@ethz.
+    email: tilleye@ethz.ch
     attrubutes:
       corresponding: false
     role:
@@ -63,6 +63,7 @@ funding: "The author received no specific funding for this work."
 <!-- badges: start -->
 
 [![](https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.12664475.svg)](https://doi.org/10.5281/zenodo.12664475)
 
 <!-- badges: end -->
 
