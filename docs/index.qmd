@@ -60,6 +60,12 @@ license: "CC BY"
 funding: "The author received no specific funding for this work."
 ---
 
+<!-- badges: start -->
+
+[![](https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+
+<!-- badges: end -->
+
 # Introduction {#sec-introduction}
 
 The overarching idea is to monitor improved cookstove and biogas digester usage in Malawi.
